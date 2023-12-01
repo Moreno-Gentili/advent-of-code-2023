@@ -1,0 +1,15 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+string[] lines = System.IO.File.ReadAllLines("input.txt");
+System.Text.RegularExpressions.Regex regex = new("[^0-9]");
+
+IEnumerable<int> calibrations =
+    from line in lines
+    let digits = regex.Replace(line, string.Empty)
+    select int.Parse($"{digits.First()}{digits.Last()}");
+
+calibrations.Sum()

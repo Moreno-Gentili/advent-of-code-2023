@@ -1,0 +1,39 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+string[] lines = System.IO.File.ReadAllLines("input.txt");
+Dictionary<string, int> map = new()
+{
+    { "1", 1 },
+    { "2", 2 },
+    { "3", 3 },
+    { "4", 4 },
+    { "5", 5 },
+    { "6", 6 },
+    { "7", 7 },
+    { "8", 8 },
+    { "9", 9 },
+    { "one", 1 },
+    { "two", 2 },
+    { "three", 3 },
+    { "four", 4 },
+    { "five", 5 },
+    { "six", 6 },
+    { "seven", 7 },
+    { "eight", 8 },
+    { "nine", 9 }
+};
+
+IEnumerable<int> calibrations = 
+    from line in lines
+    let digits = (
+        from index in Enumerable.Range(0, line.Length)
+        from entry in map
+        where line[index..].StartsWith(entry.Key)
+        select entry.Value).ToList()
+    select digits.First() * 10 + digits.Last();
+
+calibrations.Sum()
