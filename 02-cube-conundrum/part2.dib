@@ -1,0 +1,35 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string[] lines = File.ReadAllLines("input.txt");
+List<Regex> colors = new()
+{
+    new(@"(\d+) red"),
+    new(@"(\d+) green"),
+    new(@"(\d+) blue"),
+};
+
+System.Text.RegularExpressions.Regex idMatcher = new(@"Game (\d+)");
+
+IEnumerable<int> powers =
+    from line in lines
+    let id = int.Parse(idMatcher.Match(line).Groups[1].Value)
+    let maxes = (
+        from entry in colors
+        let matches = entry.Matches(line)
+        let values = (
+            from match in matches
+            from gr in match.Groups.Cast<Group>().Skip(1)
+            select int.Parse(gr.Value))
+        select values.Max())
+    let power = maxes.Aggregate(1, (a, b) => a * b)
+    select power;
+
+powers.Sum()
