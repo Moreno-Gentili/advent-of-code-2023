@@ -4,15 +4,31 @@
 
 #!csharp
 
-string[] lines = System.IO.File.ReadAllLines("test.txt");
-Dictionary<string, int> budget = new()
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string[] lines = File.ReadAllLines("input.txt");
+List<(Regex Matcher, int Budget)> colors = new()
 {
-    { "red", 12 }, { "green", 13 }, { "blue", 14 }
+    (new(@"(\d+) red"),   12),
+    (new(@"(\d+) green"), 13),
+    (new(@"(\d+) blue"),  14),
 };
 
 System.Text.RegularExpressions.Regex idMatcher = new(@"Game (\d+)");
-System.Text.RegularExpressions.Regex redMatcher = new(@"(\d+) red");
-System.Text.RegularExpressions.Regex greenMatcher = new(@"(\d+) green");
-System.Text.RegularExpressions.Regex blueMatcher = new(@"(\d+) blue");
 
-from line in lines
+IEnumerable<int> possibleIds =
+    from line in lines
+    let id = int.Parse(idMatcher.Match(line).Groups[1].Value)
+    let impossible = (
+        from entry in colors
+        let matches = entry.Matcher.Matches(line)
+        from match in matches
+        from gr in match.Groups.Cast<Group>().Skip(1)
+        where int.Parse(gr.Value) > entry.Budget
+        select gr).Any()
+    where !impossible
+    select id;
+
+possibleIds.Sum()

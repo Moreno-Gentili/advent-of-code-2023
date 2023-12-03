@@ -16,11 +16,8 @@ List<Regex> colors = new()
     new(@"(\d+) blue"),
 };
 
-System.Text.RegularExpressions.Regex idMatcher = new(@"Game (\d+)");
-
 IEnumerable<int> powers =
     from line in lines
-    let id = int.Parse(idMatcher.Match(line).Groups[1].Value)
     let maxes = (
         from entry in colors
         let matches = entry.Matches(line)
