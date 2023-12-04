@@ -1,0 +1,22 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+
+string[] lines = System.IO.File.ReadAllLines("input.txt");
+
+IEnumerable<int> points = (
+    from line in lines
+    let sections = line.Split(':').Last().Split('|')
+    let winningNumbers = sections.First().Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse)
+    let haveNumbers = sections.Last().Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse)
+    let matchingNumbersCount = haveNumbers.Intersect(winningNumbers).Count()
+    let points = Math.Pow(2, matchingNumbersCount - 1)
+    select (int)points
+);
+
+points.Sum()
