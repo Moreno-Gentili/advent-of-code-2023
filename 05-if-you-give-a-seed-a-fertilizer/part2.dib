@@ -1,0 +1,123 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string input = File.ReadAllText("input.txt").Replace("\r", string.Empty);
+
+record MapEntry(long DestinationStart, long SourceStart, long Length);
+record SourceFinder(string SourceName, MapEntry[] MapEntries)
+{
+    public long Find(long destination)
+    {
+        return (
+            from entry in MapEntries
+            where destination >= entry.DestinationStart && destination < entry.DestinationStart + entry.Length
+            let offset = destination - entry.DestinationStart
+            select (long?)(entry.SourceStart + offset)
+        ).FirstOrDefault() ?? destination;
+    }
+}
+
+class SeedFinder
+{
+    private List<(long From, long To)> values = new();
+    
+    public SeedFinder(long[] values)
+    {
+        for (int i = 0; i < values.Length; i += 2)
+        {
+            this.values.Add((values[i], values[i] + values[i + 1]));
+        }
+
+        this.values = this.values.OrderBy(pair => pair.From).ToList();
+    }
+
+    public bool Contains(long seed)
+    {
+        for (int i = 0; i < values.Count; i++)
+        {
+            if (seed >= values[i].From && seed < values[i].To)
+            {
+                return true;
+            }
+            else if (seed < values[i].From)
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+}
+
+Regex seedMatcher = new("seeds: (.+)");
+Regex mapMatcher = new(@"([a-z]+?)-to-([a-z]+?) map:(.+?)(\n\n|$)", RegexOptions.Singleline);
+SeedFinder seedFinder = new(seedMatcher.Match(input).Groups[1].Value.Split(' ').Select(long.Parse).ToArray());
+
+Dictionary<string, SourceFinder> destinationToSource = new(
+    from match in mapMatcher.Matches(input)
+    let sourceName = match.Groups[1].Value
+    let destinationName = match.Groups[2].Value
+    let lines = match.Groups[3].Value.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+    let mapEntries = (
+        from line in lines
+        let parts = line.Split(' ')
+        let destinationStart = long.Parse(parts[0])
+        let sourceStart = long.Parse(parts[1])
+        let length = long.Parse(parts[2])
+        select new MapEntry(destinationStart, sourceStart, length)
+    ).ToArray()
+    let sourceFinder = new SourceFinder(sourceName, mapEntries)
+    select new KeyValuePair<string, SourceFinder>(destinationName, sourceFinder));
+
+const string destinationName = "seed";
+long closestLocation = long.MaxValue;
+
+List<MapEntry> sortedLocations = new(
+    from mapEntry in destinationToSource["location"].MapEntries
+    orderby mapEntry.DestinationStart
+    select mapEntry
+);
+
+const string sourceName = "seed";
+
+int processorCount = Environment.ProcessorCount;
+List<Task<long>> tasks = Enumerable.Range(0, processorCount).Select(processorIndex => Task<long>.Run(() => 
+    {
+        for (long i = processorIndex; i < long.MaxValue; i += processorCount)
+        {
+            long currentLocation = i;
+            string currentPositionName = "location";
+            while (currentPositionName != sourceName)
+            {
+                SourceFinder finder = destinationToSource[currentPositionName];
+                currentLocation = finder.Find(currentLocation);
+                currentPositionName = finder.SourceName;
+            }
+
+            if (seedFinder.Contains(currentLocation))
+            {
+                return i;
+            }
+        }
+
+        throw new Exception("Did not complete");
+    }
+)).ToList();
+
+await Task.WhenAny(tasks);
+
+long result = (
+    from task in tasks
+    where task.IsCompleted
+    select task.Result
+).First();
+
+// Should take less than a minute
+result

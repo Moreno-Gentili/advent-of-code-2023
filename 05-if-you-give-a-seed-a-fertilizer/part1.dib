@@ -1,0 +1,67 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+record MapEntry(int DestinationStart, int SourceStart, int Length);
+record DestinationFinder(string DestinationName, MapEntry[] MapEntries)
+{
+    public int Find(int source)
+    {
+        return (
+            from entry in MapEntries
+            where source >= entry.SourceStart && source < entry.SourceStart + entry.Length
+            let offset = source - entry.SourceStart
+            select (int?)(entry.DestinationStart + offset)
+        ).FirstOrDefault() ?? source;
+    }
+}
+
+string input = File.ReadAllText("example.txt").Replace("\r", string.Empty);
+Regex seedMatcher = new("seeds: (.+)");
+HashSet<int> seeds = new (
+    from value in seedMatcher.Match(input).Groups[1].Value.Split(' ')
+    select int.Parse(value)
+);
+
+Regex mapMatcher = new(@"([a-z]+?)-to-([a-z]+?) map:(.+?)(\n\n|$)", RegexOptions.Singleline);
+
+Dictionary<string, DestinationFinder> sourceToDestination = new(
+    from match in mapMatcher.Matches(input)
+    let sourceName = match.Groups[1].Value
+    let destinationName = match.Groups[2].Value
+    let lines = match.Groups[3].Value.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+    let mapEntries = (
+        from line in lines
+        let parts = line.Split(' ')
+        let destinationStart = int.Parse(parts[0])
+        let sourceStart = int.Parse(parts[1])
+        let length = int.Parse(parts[2])
+        select new MapEntry(destinationStart, sourceStart, length)
+    ).ToArray()
+    let destinationFinder = new DestinationFinder(destinationName, mapEntries)
+    select new KeyValuePair<string, DestinationFinder>(sourceName, destinationFinder));
+
+string currentPositionName = "seed";
+const string destinationName = "location";
+int closestLocation = int.MaxValue;
+
+foreach (int seed in seeds)
+{
+    int currentLocation = seed;
+    while (currentPositionName != destinationName)
+    {
+        DestinationFinder finder = sourceToDestination[currentPositionName];
+        currentLocation = finder.Find(currentLocation);
+        currentPositionName = finder.DestinationName;
+    }
+
+    closestLocation = Math.Min(closestLocation, currentLocation);
+}
+
+closestLocation
