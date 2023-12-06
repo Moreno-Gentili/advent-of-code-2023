@@ -1,0 +1,61 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string[] text = File.ReadAllLines("input.txt");
+Regex numberMatcher = new Regex(@"\d+");
+
+List<long> raceDurations = new(
+    from match in numberMatcher.Matches(text[0].Replace(" ", string.Empty))
+    select long.Parse(match.Groups[0].Value)
+);
+
+List<long> recordDistances = new(
+    from match in numberMatcher.Matches(text[1].Replace(" ", string.Empty))
+    select long.Parse(match.Groups[0].Value)
+);
+
+// distance = speed * (raceDuration - holdDuration)
+
+// Given:
+// b: raceDuration
+// c: distance
+// x: speed, holdDuration
+
+// Then:
+// c = x * (b - x) ->     
+// c = -x^2 + bx ->
+// x^2 - bx + c = 0
+
+#!markdown
+
+https://www.mathsisfun.com/quadratic-equation-solver.html
+
+![Quadratic formula](https://www.mathsisfun.com/algebra/images/quadratic-formula.svg)
+
+#!csharp
+
+(double X1, double X2) SolveQuadratic(long a, long b, long c)
+{
+    double discriminant = Math.Sqrt(Math.Pow(b, 2) - 4 * a * c);
+    double x1 = (-b - discriminant) / 2 * a;
+    double x2 = (-b + discriminant) / 2 * a;
+    return (x1, x2);
+}
+
+IEnumerable<long> records = 
+    from raceIndex in Enumerable.Range(0, raceDurations.Count)
+    let raceDuration = raceDurations[raceIndex]
+    let distance = recordDistances[raceIndex] + 1 // we must beat the previous record, so add 1
+    let solutions = SolveQuadratic(a: 1, b: -raceDuration, c: distance)
+    let upperSolution = Convert.ToInt64(Math.Floor(solutions.X2)) // only whole numbers allowed
+    let lowerSolution = Convert.ToInt64(Math.Ceiling(solutions.X1)) // only whole numbers allowed
+    select upperSolution - lowerSolution + 1; // both must be included, so add 1
+
+records.Aggregate(1L, (n1, n2) => n1 * n2)
