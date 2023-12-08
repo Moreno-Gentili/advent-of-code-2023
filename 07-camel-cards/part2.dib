@@ -1,0 +1,119 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+const string cardLabels = "J23456789TQKA";
+const string jokerLabel = "J";
+enum HandType : int
+{
+    None = 0,
+    HighCard = 1,
+    OnePair = 2,
+    TwoPair = 3,
+    ThreeOfKind = 4,
+    FullHouse = 5,
+    FourOfKind = 6,
+    FiveOfKind = 7
+}
+
+class Hand
+{
+    public Hand(string cards, int bid)
+    {
+        Bid = bid;
+        Cards = cards;
+        HandType = CalculateHandType(cards);
+        Strength = CalculateStrength(HandType, cards);
+    }
+
+    public string Cards { get; }
+    public int Bid { get; }
+    public long Strength { get; }
+    public HandType HandType { get; }
+
+    static HandType CalculateHandType(string cards)
+    {
+        cards = cards.Replace(jokerLabel, string.Empty);
+        int jokersCount = 5 - cards.Length;
+
+        Dictionary<char, int> counts = cards.GroupBy(card => card).ToDictionary(group => group.Key, group => group.Count());
+        HandType type = HandType.None;
+        if (Has(counts, 5)) type = HandType.FiveOfKind;
+        else if (Has(counts, 4)) type = HandType.FourOfKind;
+        else if (Has(counts, 3, 2)) type = HandType.FullHouse;
+        else if (Has(counts, 3)) type = HandType.ThreeOfKind;
+        else if (Has(counts, 2, 2)) type = HandType.TwoPair;
+        else if (Has(counts, 2)) type = HandType.OnePair;
+        else if (Has(counts, 1)) type = HandType.HighCard;
+        
+        return ImproveHandType(type, jokersCount);
+    }
+
+    static HandType ImproveHandType(HandType startingHandType, int jokersCount)
+    {
+        HandType improvedHandType = startingHandType;
+        while (jokersCount-- > 0)
+        {
+            improvedHandType = improvedHandType switch
+            {
+                HandType.None => HandType.HighCard,
+                HandType.HighCard => HandType.OnePair,
+                HandType.OnePair => HandType.ThreeOfKind,
+                HandType.TwoPair => HandType.FullHouse,
+                HandType.ThreeOfKind => HandType.FourOfKind,
+                HandType.FourOfKind => HandType.FiveOfKind,
+                _ => throw new InvalidOperationException($"Cannot upgrade {improvedHandType}")
+            };
+        }
+
+        return improvedHandType;
+    }
+
+    static bool Has(Dictionary<char, int> groupedCards, params int[] counts)
+    {
+        List<int> residualCounts = new(counts);
+        foreach (var group in groupedCards)
+        {
+            int index = residualCounts.IndexOf(group.Value);
+            if (index >= 0)
+            {
+                residualCounts.RemoveAt(index);
+            }
+        }
+
+        return residualCounts.Count == 0;
+    }
+
+    static long CalculateStrength(HandType handType, string cards)
+    {
+        return ((int)handType * 10_000_000_000L) +
+                (cardLabels.IndexOf(cards[0]) * 100_000_000L) +
+                (cardLabels.IndexOf(cards[1]) * 1_000_000L) +
+                (cardLabels.IndexOf(cards[2]) * 10_000L) +
+                (cardLabels.IndexOf(cards[3]) * 100L) +
+                (cardLabels.IndexOf(cards[4]));
+    }
+}
+
+string[] lines = File.ReadAllLines("input.txt");
+
+List<Hand> hands = new (
+    from line in lines
+    let parts = line.Split(' ')
+    let cards = parts[0]
+    let bid = int.Parse(parts[1])
+    let hand = new Hand(cards, bid)
+    orderby hand.Strength
+    select hand);
+
+IEnumerable<int> winnings = 
+    from rank in Enumerable.Range(1, hands.Count)
+    select rank * hands[rank-1].Bid;
+
+winnings.Sum()
