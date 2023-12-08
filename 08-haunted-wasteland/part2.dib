@@ -78,4 +78,4 @@ Dictionary<int, int> Factorize(int number)
     return factors;
 }
 
-// steps.Aggregate(1L, (n1, n2) => n1 * n2)
+factors.Aggregate(1L, (n, factor) => n * Convert.ToInt64(Math.Pow(factor.Key, factor.Max())))
