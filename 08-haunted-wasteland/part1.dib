@@ -1,0 +1,35 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string[] lines = File.ReadAllLines("example.txt");
+
+string directions = lines[0];
+Dictionary<string, (string Left, string Right)> map = new(
+    from line in lines.Skip(2)
+    let parts = line.Split('=')
+    let startingLocation = parts[0].Trim()
+    let locations = parts[1].Trim('(', ')').Replace(" ", string.Empty).Split(',')
+    let leftLocation = locations[0]
+    let rightLocation = locations[1]
+    select new KeyValuePair<string, (string, string)>(startingLocation, (leftLocation, rightLocation)));
+
+const char Left = 'L';
+const string destination = "ZZZ";
+string currentLocation = "AAA";
+
+int stepsTaken = 0;
+while (currentLocation != destination)
+{
+    char nextDirection = directions[stepsTaken++ % directions.Length];
+    var currentNode = map[currentLocation];
+    currentLocation = nextDirection == Left ? currentNode.Left : currentNode.Right;
+}
+
+stepsTaken

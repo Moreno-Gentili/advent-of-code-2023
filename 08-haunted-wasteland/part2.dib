@@ -1,0 +1,81 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string[] lines = File.ReadAllLines("input.txt");
+int[] primes = File.ReadAllText("primes.txt").Replace(" ", string.Empty).Split(',').Select(int.Parse).ToArray();
+
+string directions = lines[0];
+Dictionary<string, (string Left, string Right)> map = new(
+    from line in lines.Skip(2)
+    let parts = line.Split('=')
+    let startingLocation = parts[0].Trim()
+    let locations = parts[1].Trim('(', ')', ' ').Replace(" ", string.Empty).Split(',')
+    let leftLocation = locations[0]
+    let rightLocation = locations[1]
+    select new KeyValuePair<string, (string, string)>(startingLocation, (leftLocation, rightLocation)));
+
+const char Left = 'L';
+const char Origin = 'A';
+const char Destination = 'Z';
+
+ILookup<int, int> factors = (
+    from node in map
+    let location = node.Key
+    where location.EndsWith(Origin)
+    let steps = GetStepsToDestination(location)
+    let factors = Factorize(steps)
+    from factor in factors
+    select factor).ToLookup(f => f.Key, f => f.Value);
+
+int GetStepsToDestination(string currentLocation)
+{
+    int stepsTaken = 0;
+    while (!currentLocation.EndsWith(Destination))
+    {
+        char nextDirection = directions[stepsTaken++ % directions.Length];
+        var currentNode = map[currentLocation];
+        currentLocation = nextDirection == Left ? currentNode.Left : currentNode.Right;
+    }
+
+    return stepsTaken;
+}
+
+Dictionary<int, int> Factorize(int number)
+{
+    Dictionary<int, int> factors = new();
+
+    while (number > 1)
+    {
+        int previousNumber = number;
+        foreach (int prime in primes)
+        {
+            if (number % prime == 0)
+            {
+                if (factors.ContainsKey(prime))
+                {
+                    factors[prime] = factors[prime] + 1;
+                }
+                else
+                {
+                    factors.Add(prime, 1);
+                }
+                
+                number /= prime; 
+            }
+        }
+
+        if (previousNumber == number)
+            throw new InvalidOperationException($"Could not divide {number}");
+    }
+
+    return factors;
+}
+
+// steps.Aggregate(1L, (n1, n2) => n1 * n2)
