@@ -8,14 +8,14 @@ using System.Linq;
 using System.IO;
 using System.Text.RegularExpressions;
 
-string[] lines = File.ReadAllLines("example.txt");
+string[] lines = File.ReadAllLines("input.txt");
 
 string directions = lines[0];
 Dictionary<string, (string Left, string Right)> map = new(
     from line in lines.Skip(2)
     let parts = line.Split('=')
     let startingLocation = parts[0].Trim()
-    let locations = parts[1].Trim('(', ')').Replace(" ", string.Empty).Split(',')
+    let locations = parts[1].Trim('(', ')', ' ').Replace(" ", string.Empty).Split(',')
     let leftLocation = locations[0]
     let rightLocation = locations[1]
     select new KeyValuePair<string, (string, string)>(startingLocation, (leftLocation, rightLocation)));
