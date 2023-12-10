@@ -1,0 +1,146 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+#r "nuget: GeoLibrary, 1.3.0"
+using Polygon = GeoLibrary.Model.Polygon;
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+record Point(int X, int Y);
+
+string[] lines = File.ReadAllLines("input.txt");
+bool[,] walked = new bool[lines.First().Length, lines.Length];
+const string Legend = "S|-JL7F.";
+const int SouthBound = 140;
+const int EastBound = 140;
+
+enum Connection
+{
+    Start = 0,
+    NorthToSouth = 1,
+    WestToEast = 2,
+    NorthToWest = 3,
+    NorthToEast = 4,
+    SouthToWest = 5,
+    SouthToEast = 6,
+    Ground = 7
+}
+
+enum Direction
+{
+    Start,
+    North,
+    South,
+    West,
+    East
+}
+
+Point start = (
+    from y in Enumerable.Range(0, lines.Length)
+    let x = lines[y].IndexOf('S')
+    where x >= 0
+    select new Point(x, y)).First();
+
+record WalkOption(Point Position, Connection Connection, int Distance, Direction IncomingDirection, List<Point> Points);
+Queue<WalkOption> walk = new();
+walk.Enqueue(new WalkOption(start, Connection.Start, 0, Direction.Start, new List<Point>([start])));
+List<WalkOption> solutions = new();
+while (walk.Count > 0)
+{
+    WalkOption current = walk.Dequeue();
+    IEnumerable<WalkOption> walkOptions = GetNextWalkOptions(current);
+    foreach (WalkOption walkOption in walkOptions)
+    {
+        if (walkOption.Connection == Connection.Start)
+        {
+            solutions.Add(walkOption);
+        }
+        else
+        {
+            walk.Enqueue(walkOption);
+        }
+    }
+}
+
+IEnumerable<WalkOption> GetNextWalkOptions(WalkOption current)
+{
+    Direction[] viableDirections = current.Connection switch
+    {
+        Connection.Start => [Direction.North, Direction.South, Direction.West, Direction.South],
+        Connection.NorthToSouth => [Direction.North, Direction.South],
+        Connection.WestToEast => [Direction.West, Direction.East],
+        Connection.NorthToWest => [Direction.North, Direction.West],
+        Connection.NorthToEast => [Direction.North, Direction.East],
+        Connection.SouthToWest => [Direction.South, Direction.West],
+        Connection.SouthToEast => [Direction.South, Direction.East],
+        _ => throw new InvalidOperationException("Connection not walkable")
+    };
+
+    viableDirections = viableDirections.Except([current.IncomingDirection]).ToArray();
+
+    foreach (Direction viableDirection in viableDirections)
+    {
+        Point nextPosition = (viableDirection, current.Position) switch
+        {
+            (Direction.North, { Y: > 0 }) => new Point(current.Position.X, current.Position.Y - 1),
+            (Direction.South, { Y: < SouthBound }) => new Point(current.Position.X, current.Position.Y + 1),
+            (Direction.West, { X: > 0 }) => new Point(current.Position.X - 1, current.Position.Y),
+            (Direction.East, { X: < EastBound }) => new Point(current.Position.X + 1, current.Position.Y),
+            _ => null
+        };
+
+        if (nextPosition != null)
+        {
+            Connection connection = GetConnection(nextPosition);
+            if (connection != Connection.Ground)
+            {
+                List<Point> points = new List<Point>(current.Points);
+                points.Add(nextPosition);
+                yield return new WalkOption(nextPosition, connection, current.Distance + 1, GetOpposite(viableDirection), points);
+            }
+        }
+    }
+}
+
+Connection GetConnection(Point position)
+{
+    return (Connection)Legend.IndexOf(lines[position.Y][position.X]);
+}
+
+Direction GetOpposite(Direction direction)
+{
+    return direction switch
+    {
+        Direction.North => Direction.South,
+        Direction.South => Direction.North,
+        Direction.East => Direction.West,
+        Direction.West => Direction.East,
+        _ => throw new InvalidOperationException("Direction unknown")
+    };
+}
+
+WalkOption solution = solutions.OrderByDescending(walkOption => walkOption.Distance).First();
+var points = 
+    from point in solution.Points
+    select new GeoLibrary.Model.Point(point.X / 10.0, point.Y / 10.0);
+
+var polygon = new Polygon(points);
+
+int includedPoints = 0;
+for (int x = 0; x <= EastBound; x++)
+{
+    for (int y = 0; y <= SouthBound; y++)
+    {
+        var currentPoint = new GeoLibrary.Model.Point(x / 10.0, y / 10.0);
+        if (polygon.IsPointInside(currentPoint) && !solution.Points.Contains(new Point(x, y)))
+        {
+            includedPoints++;
+        }
+    }
+}
+
+includedPoints
