@@ -1,0 +1,46 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string[] lines = File.ReadAllLines("example.txt");
+
+int PredictNext(int[] values)
+{
+    List<int> lastValues = new();
+
+    List<List<int>> steps = new();
+    steps.Add(new List<int>(values));
+
+    while (!steps.Last().All(v => v == 0))
+    {
+        List<int> lastStep = steps.Last();
+        List<int> currentStep = new();
+        steps.Add(currentStep);
+
+        for (int i = 1; i < lastStep.Count; i++)
+        {
+            currentStep.Add(values[i] - values[i - 1]);
+        }
+    }
+
+    Console.WriteLine("Fatto");
+
+    for (int i = steps.Count - 2; i >= 0; i--)
+    {
+        int nextAdd = steps[i + 1].Last() + steps[i].Last();
+        steps[i].Add(nextAdd);
+    }
+}
+
+IEnumerable<int> predictions =
+    from history in lines
+    let historyValues = history.Split(' ').Select(int.Parse).ToArray()
+    select PredictNext(historyValues);
+
+predictions.Sum();
