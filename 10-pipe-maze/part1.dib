@@ -9,7 +9,6 @@ using System.IO;
 using System.Text.RegularExpressions;
 
 string[] lines = File.ReadAllLines("input.txt");
-bool[,] walked = new bool[lines.First().Length, lines.Length];
 const string Legend = "S|-JL7F.";
 const int SouthBound = 140;
 const int EastBound = 140;
