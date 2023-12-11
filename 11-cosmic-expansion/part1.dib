@@ -1,0 +1,63 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string[] lines = File.ReadAllLines("example.txt");
+record Point(int X, int Y);
+const char Galaxy = '#';
+
+record GalaxyLocator(List<int> ColumnExpansions, List<int> RowExpansions)
+{
+    public Point GetExpandedLocation(int x, int y)
+    {
+        int xOffset = ColumnExpansions.Count(x1 => x1 < x);
+        int yOffset = RowExpansions.Count(y1 => y1 < y);
+        return new Point(x + xOffset, y + yOffset);
+    }
+
+    public int CalculateDistance(Point location1, Point location2)
+    {
+        return Math.Abs(location1.X - location2.X) +
+               Math.Abs(location1.Y - location2.Y);
+
+    }
+}
+
+List<int> columnExpansions = new(
+    from x in Enumerable.Range(0, lines.First().Length)
+    let isEmptySpace = lines.Select(l => l[x]).All(c => c != Galaxy)
+    where isEmptySpace
+    select x
+);
+
+List<int> rowExpansions = new(
+    from y in Enumerable.Range(0, lines.Length)
+    let isEmptySpace = lines[y].All(c => c != Galaxy)
+    where isEmptySpace
+    select y
+);
+
+GalaxyLocator galaxyLocator = new(columnExpansions, rowExpansions);
+
+List<Point> galaxyLocations = new(
+    from x in Enumerable.Range(0, lines.First().Length)
+    from y in Enumerable.Range(0, lines.Length)
+    let isGalaxy = lines[y][x] == Galaxy
+    where isGalaxy
+    select galaxyLocator.GetExpandedLocation(x, y)
+);
+
+List<int> distances = new(
+    from i in Enumerable.Range(0, galaxyLocations.Count - 1)
+    from j in Enumerable.Range(i + 1, galaxyLocations.Count - i)
+    let distance = galaxyLocator.CalculateDistance(galaxyLocations[i], galaxyLocations[j])
+    select distance
+);
+
+distance.Sum();
