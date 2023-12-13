@@ -1,0 +1,86 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string[] lines = File.ReadAllLines("input.txt");
+record Test(string Pattern, List<int> Groups);
+
+List<Regex> matchers = new(
+    from count in Enumerable.Range(0, 20)
+    select new Regex(@"(?=(?:\.|\?)(?:#|\?){" + count.ToString() + @"}(?:\.|\?))"));
+
+List<int> combinations = new (
+    from line in lines
+    let parts = line.Split(' ')
+    let pattern = $".{parts[0]}."
+    let groups = parts[1].Split(',').Select(int.Parse).ToList()
+    select GetCombinations(new Test(pattern, groups))
+);
+
+bool IsValidPattern(string pattern, List<int> groups)
+{
+    List<int> actualIndex = pattern.Replace("#", ".").Replace("?", ".").Split('.', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList();
+    for (int i = 0; i < actualIndex.Count; i++)
+    {
+        if (actualIndex[i] != groups[i])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+int GetCombinations(Test initialTest)
+{
+    Queue<Test> tests = new();
+    tests.Enqueue(initialTest);
+
+    HashSet<string> solutions = new();
+    while(tests.Count > 0)
+    {
+        Test test = tests.Dequeue();
+        int group = test.Groups[0];
+        Regex matcher = matchers[group];
+        List<int> nextGroups = new(test.Groups.Skip(1));
+
+        HashSet<string> nextPatterns = new();
+        foreach (Match match in matcher.Matches(test.Pattern))
+        {
+            int start = match.Index;
+            int length = group + 2;
+            string nextPattern = (test.Pattern[0..start] + "." + group.ToString() + "." + test.Pattern[(start + length)..]);
+            if (IsValidPattern(nextPattern, initialTest.Groups))
+            {
+                if (nextGroups.Count == 0)
+                {
+                    // Console.WriteLine(group.ToString() + " " + nextPattern);
+                    if (!nextPattern.Contains('#'))
+                    {
+                        solutions.Add(nextPattern.Replace('?', '.'));
+                    }
+                }
+                else
+                {
+                    nextPatterns.Add(nextPattern);
+                }
+            }
+        }
+
+        foreach (string nextPattern in nextPatterns)
+        {
+            Test nextTest = new Test(nextPattern, nextGroups);
+            tests.Enqueue(nextTest);
+        }
+    }
+
+    return solutions.Count;
+}
+
+combinations.Sum()
