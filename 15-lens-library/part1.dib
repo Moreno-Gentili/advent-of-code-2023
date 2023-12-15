@@ -1,0 +1,31 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+string text = File.ReadAllText("input.txt");
+string[] steps = text.Split(',');
+
+int Hash(string step)
+{
+    int currentValue = 0;
+    foreach (char character in step)
+    {
+        currentValue += (int)character;
+        currentValue *= 17;
+        currentValue %= 256;
+    }
+
+    return currentValue;
+}
+
+IEnumerable<int> hashes = 
+    from step in steps
+    select Hash(step);
+
+hashes.Sum()

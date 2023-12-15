@@ -1,0 +1,89 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+using System.Collections.Specialized;
+
+string text = File.ReadAllText("input.txt");
+string[] steps = text.Split(',');
+const char ChangeOperation = '=';
+const char RemoveOperation = '-';
+
+Dictionary<int, OrderedDictionary> boxes = new();
+
+int Hash(string step)
+{
+    int currentValue = 0;
+    foreach (char character in step)
+    {
+        currentValue += (int)character;
+        currentValue *= 17;
+        currentValue %= 256;
+    }
+
+    return currentValue;
+}
+
+int Change(int box, string label, int slot)
+{
+    if (!boxes.ContainsKey(box))
+    {
+        boxes.Add(box, new());
+    }
+
+    OrderedDictionary lenses = boxes[box];
+    if (lenses.Contains(label))
+    {
+        lenses[label] = slot;
+    }
+    else
+    {
+        lenses.Add(label, slot);
+    }
+    
+    return 0;
+}
+
+int Remove(int box, string label)
+{
+    if (boxes.TryGetValue(box, out OrderedDictionary lenses))
+    {
+        lenses.Remove(label);
+
+        if (lenses.Count == 0)
+        {
+            boxes.Remove(box);
+        }
+    }
+
+    return 0;
+}
+
+IEnumerable<int> actions = 
+    (from step in steps
+    let parts = step.Split(ChangeOperation, RemoveOperation)
+    let label = parts.First()
+    let operation = step[label.Length..(label.Length+1)].First()
+    let slot = Hash(label)
+    select operation == ChangeOperation ? Change(slot, label, int.Parse(parts.Last())) : Remove(slot, label)).ToList();
+
+
+int focusingPowers = 0;
+foreach (KeyValuePair<int, OrderedDictionary> box in boxes)
+{
+    OrderedDictionary lenses = boxes[box.Key];
+    for (int i = 0; i < lenses.Count; i++)
+    {
+        int factor1 = box.Key + 1;
+        int factor2 = i + 1;
+        int factor3 = (int)lenses[i];
+        focusingPowers += factor1 * factor2 * factor3;
+    }
+}
+
+focusingPowers
