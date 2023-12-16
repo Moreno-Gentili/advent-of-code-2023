@@ -10,9 +10,11 @@ using System.IO;
 
 string[] lines = File.ReadAllLines("input.txt");
 
-ConcurrentDictionary<string, List<int>> matchCache = new();
-const bool UseCache = true;
+List<ConcurrentDictionary<string, List<int>>> matchCache = new(
+    from i in Enumerable.Range(0, 20)
+    select new ConcurrentDictionary<string, List<int>>());
 
+const bool UseCache = true;
 List<Regex> matchers = new(
     from count in Enumerable.Range(0, 20)
     select new Regex(@"(?=(?:\.|\?)(?:#|\?){" + count.ToString() + @"}(?:\.|\?))"));
@@ -79,14 +81,7 @@ int GetCombinations(Test initialTest)
         }
 
         List<int> indexes = null; 
-        if (UseCache)
-        {
-            indexes = matchCache.GetOrAdd($"{group}\t{subPattern}", key => matcher.Matches(subPattern).Cast<Match>().Select(m => m.Index).ToList());
-        }
-        else
-        {
-            indexes = matcher.Matches(subPattern).Cast<Match>().Select(m => m.Index).ToList();
-        }
+        indexes = matchCache[group].GetOrAdd(subPattern, key => matcher.Matches(key).Cast<Match>().Select(m => m.Index).ToList());
         
         foreach (int index in indexes)
         {
