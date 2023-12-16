@@ -6,6 +6,7 @@
 
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
+using System.IO;
 
 string[] lines = File.ReadAllLines("input.txt");
 
@@ -16,14 +17,14 @@ List<Regex> matchers = new(
     from count in Enumerable.Range(0, 20)
     select new Regex(@"(?=(?:\.|\?)(?:#|\?){" + count.ToString() + @"}(?:\.|\?))"));
 
-const int Repetitions = 5;
+const int Repetitions = 1;
 
 IEnumerable<int> combinations =
     from line in lines
     let parts = line.Split(' ')
     let pattern = $".{string.Join("?", Enumerable.Repeat(parts[0], Repetitions))}."
-    let groups = $"{string.Join(",", Enumerable.Repeat(parts[1], Repetitions))}".Split(',').Select(int.Parse).ToList()
-    select GetCombinations(new Test(pattern, groups, 0)
+    let groups = $"{string.Join(",", Enumerable.Repeat(parts[1], Repetitions))}".Split(',').Select(int.Parse).ToArray()
+    select GetCombinations(new Test(pattern, groups, groups.Sum(), 0)
 );
 
 // limita il più possibile: se c'è un #, hai già trovato il range
@@ -48,15 +49,14 @@ int GetCombinations(Test initialTest)
     while(tests.Count > 0)
     {
         Test test = tests.Dequeue();
-        int group = test.Groups[0];
-        Log(group);
+        int group = test.Groups.Span[0];
         Regex matcher = matchers[group];
-        // TODO: Span
-        List<int> nextGroups = new(test.Groups.Skip(1));
+        Memory<int> nextGroups = test.Groups[1..];
+        int nextGroupsSum = test.GroupsSum - group;
 
         Dictionary<string, int> nextPatterns = new();
 
-        int minimumNeededToComplete = nextGroups.Sum() + nextGroups.Count - 1;
+        int minimumNeededToComplete = nextGroupsSum + nextGroups.Length - 1;
         int upperBound = test.Pattern.Length - minimumNeededToComplete - 1;
         if (upperBound - test.Offset <= 0) continue; // Sbavatura?
         string subPattern = test.Pattern[test.Offset..upperBound];
@@ -95,7 +95,7 @@ int GetCombinations(Test initialTest)
             int secondPart = Math.Min(test.Pattern.Length, start + length); // Sbavatura Math.Min, andrebbe solo start+length;
             string nextPattern = $"{test.Pattern[0..start]}.{group.ToString().PadRight(group, '.')}.{test.Pattern[secondPart..]}";
 
-            if (nextGroups.Count == 0)
+            if (nextGroups.Length == 0)
             {
                 if (!nextPattern.Contains('#')) // Sbavatura: questo ancora serve, perché?
                 {
@@ -110,7 +110,7 @@ int GetCombinations(Test initialTest)
 
         foreach (KeyValuePair<string, int> entry in nextPatterns)
         {
-            Test nextTest = new Test(entry.Key, nextGroups, entry.Value);
+            Test nextTest = new Test(entry.Key, nextGroups, nextGroupsSum, entry.Value);
             tests.Enqueue(nextTest);
         }
     }
@@ -121,4 +121,4 @@ int GetCombinations(Test initialTest)
 // Console.WriteLine(string.Join(", ", combinations.AsParallel()));
 Console.WriteLine(combinations.AsParallel().Sum());
 
-record Test(string Pattern, List<int> Groups, int Offset);
+record Test(string Pattern, Memory<int> Groups, int GroupsSum, int Offset);
