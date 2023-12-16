@@ -1,0 +1,183 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!csharp
+
+using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
+
+const int UpperBound = 110 - 1;
+Cell[][] cells = (
+    from line in File.ReadAllLines("input.txt")
+    let cells = (
+        from character in line
+        let type = character switch
+        {
+            '.' => CellType.Empty,
+            '|' => CellType.VerticalSplitter,
+            '-' => CellType.HorizontalSplitter,
+            '\\' => CellType.BackwardReflector,
+            '/' => CellType.ForwardReflector,
+            _ => throw new NotSupportedException()
+        }
+        select new Cell(type, new())
+    ).ToArray()
+    select cells).ToArray();
+
+enum Direction
+{
+    Up,
+    Down,
+    Left,
+    Right
+};
+
+enum CellType
+{
+    Empty,
+    VerticalSplitter,
+    HorizontalSplitter,
+    ForwardReflector,
+    BackwardReflector
+}
+
+
+record Point(int X, int Y);
+record Ray(Point Position, Direction Direction);
+record Cell(CellType Type, HashSet<Direction> Energizations);
+
+Cell FindCellAt(Ray ray)
+{
+    Cell cell = cells[ray.Position.Y][ray.Position.X];
+    if (!cell.Energizations.Add(ray.Direction))
+    {
+        return null;
+    }
+
+    return cell;
+}
+
+Direction RotateClockwise(Direction direction)
+{
+    return direction switch
+    {
+        Direction.Down => Direction.Left,
+        Direction.Left => Direction.Up,
+        Direction.Up => Direction.Right,
+        Direction.Right => Direction.Down
+    };
+}
+
+Direction RotateAntiClockwise(Direction direction)
+{
+    return direction switch
+    {
+        Direction.Down => Direction.Right,
+        Direction.Right => Direction.Up,
+        Direction.Up => Direction.Left,
+        Direction.Left => Direction.Down
+    };
+}
+
+IEnumerable<Direction> GetDirections(Ray ray, Cell cell)
+{
+    (Point position, Direction direction) = ray;
+    (int x, int y) = position;
+    CellType type = cell.Type;
+    return (direction, type) switch
+    {
+        (Direction.Right or Direction.Left, CellType.Empty or CellType.HorizontalSplitter) => [direction],
+        (Direction.Right or Direction.Left, CellType.VerticalSplitter) => [Direction.Down, Direction.Up],
+        (Direction.Right or Direction.Left, CellType.ForwardReflector) => [RotateAntiClockwise(direction)],
+        (Direction.Right or Direction.Left, CellType.BackwardReflector) => [RotateClockwise(direction)],
+
+        (Direction.Up or Direction.Down, CellType.Empty or CellType.VerticalSplitter) => [direction],
+        (Direction.Up or Direction.Down, CellType.HorizontalSplitter) => [Direction.Right, Direction.Left],
+        (Direction.Up or Direction.Down, CellType.BackwardReflector) => [RotateAntiClockwise(direction)],
+        (Direction.Up or Direction.Down, CellType.ForwardReflector) => [RotateClockwise(direction)],
+        _ => []
+    };
+}
+
+IEnumerable<Ray> PropagateRay(Ray ray, IEnumerable<Direction> directions)
+{
+    int x = ray.Position.X;
+    int y = ray.Position.Y;
+
+    return
+        from direction in directions
+        let point = direction switch
+            {
+                Direction.Up => new Point(x, y - 1),
+                Direction.Down => new Point(x, y + 1),
+                Direction.Left => new Point(x - 1, y),
+                Direction.Right => new Point(x + 1, y),
+                _ => throw new NotSupportedException("Direction not supported")
+            }
+        where Math.Min(point.X, point.Y) >= 0 && Math.Max(point.X, point.Y) <= UpperBound
+        select new Ray(point, direction);
+}
+
+int GetEnergizedCellsCount(Ray startingRay)
+{
+    List<Ray> rays = new();
+    rays.Add(startingRay);
+    while (rays.Count > 0)
+    {
+        for (int i = rays.Count - 1; i >= 0; i--)
+        {
+            Ray ray = rays[i];
+            Cell cell = FindCellAt(ray);
+            rays.RemoveAt(i);
+
+            if (cell is not null)
+            {
+                IEnumerable<Direction> directions = GetDirections(ray, cell);
+                IEnumerable<Ray> propagatedRays = PropagateRay(ray, directions);
+                rays.AddRange(propagatedRays);
+            }
+        }
+    }
+
+    return cells.SelectMany(c => c).Count(c => c.Energizations.Count > 0);
+}
+
+void ClearCells()
+{
+    for (int x = 0; x <= UpperBound; x++)
+    {
+        for (int y = 0; y <= UpperBound; y++)
+        {
+            cells[y][x].Energizations.Clear();
+        }
+    }
+}
+
+IEnumerable<Ray> GetStartingRays()
+{
+    IEnumerable<int> range = Enumerable.Range(0, UpperBound + 1);
+    return [
+        ..from y in range select new Ray(new(0, y), Direction.Right),
+        ..from y in range select new Ray(new(UpperBound, y), Direction.Left),
+        ..from x in range select new Ray(new(x, 0), Direction.Down),
+        ..from x in range select new Ray(new(x, UpperBound), Direction.Up),
+    ];
+}
+
+int FindMostEnergized(IEnumerable<Ray> startingRays)
+{
+    int mostEnergized = 0;
+    foreach (Ray startingRay in startingRays)
+    {
+        ClearCells();
+        int energizedCount = GetEnergizedCellsCount(startingRay);
+        mostEnergized = Math.Max(mostEnergized, energizedCount);
+    }
+
+    return mostEnergized;
+}
+
+IEnumerable<Ray> startingRays = GetStartingRays();
+FindMostEnergized(startingRays)
