@@ -5,115 +5,91 @@
 #!csharp
 
 using System.Text.RegularExpressions;
-using System.Collections.Concurrent;
 using System.IO;
+
+record Test(string Pattern, Memory<int> Groups, int GroupsSum, int Offset);
+
+const char Separator = '.';
+const char BrokenSpring = '#';
+const char Wildcard = '?';
 
 string[] lines = File.ReadAllLines("input.txt");
 
-List<ConcurrentDictionary<string, List<int>>> matchCache = new(
-    from i in Enumerable.Range(0, 20)
-    select new ConcurrentDictionary<string, List<int>>());
-
-const bool UseCache = true;
 List<Regex> matchers = new(
     from count in Enumerable.Range(0, 20)
     select new Regex(@"(?=(?:\.|\?)(?:#|\?){" + count.ToString() + @"}(?:\.|\?))"));
 
-const int Repetitions = 1;
-
-IEnumerable<int> combinations =
+IEnumerable<long> combinations =
     from line in lines
+    let repetitions = 5
     let parts = line.Split(' ')
-    let pattern = $".{string.Join("?", Enumerable.Repeat(parts[0], Repetitions))}."
-    let groups = $"{string.Join(",", Enumerable.Repeat(parts[1], Repetitions))}".Split(',').Select(int.Parse).ToArray()
-    select GetCombinations(new Test(pattern, groups, groups.Sum(), 0)
-);
+    let pattern = $".{string.Join(Wildcard, Enumerable.Repeat(parts[0], repetitions))}."
+    let groups = $"{string.Join(",", Enumerable.Repeat(parts[1], repetitions))}".Split(',').Select(int.Parse).ToArray()
+    let cache = new Dictionary<(int Offset, int ResidualGroups), long>()
+    select GetCombinations(new Test(pattern, groups, groups.Sum(), 0), cache);
 
-// limita il più possibile: se c'è un #, hai già trovato il range
-// l'indice successivo non dovrebbe cercare in posizioni precedenti
-// metti in cache i frammenti di stringa
-// List<int> Groups deve essere un Memory<int>, così che non devi creare nuove liste
-HashSet<int> seenGroups = new();
-void Log(int group)
+long GetCombinations(Test test, Dictionary<(int Offset, int ResidualGroups), long> cache)
 {
-    if (seenGroups.Add(group))
+    (int Offset, int ResidualGroups) cacheKey = (test.Offset, test.Groups.Length);
+    if (cache.TryGetValue(cacheKey, out long combinations))
     {
-        System.IO.File.WriteAllText($"logs/{group}.txt", "");
+        return combinations;
     }
-}
 
-int GetCombinations(Test initialTest)
-{
-    Queue<Test> tests = new();
-    tests.Enqueue(initialTest);
+    int group = test.Groups.Span[0];
+    Regex matcher = matchers[group];
+    Memory<int> nextGroups = test.Groups[1..];
+    bool isLastOne = nextGroups.Length == 0;
+    int nextGroupsSum = test.GroupsSum - group;
 
-    HashSet<string> solutions = new();
-    while(tests.Count > 0)
+    Dictionary<string, int> nextPatterns = new();
+
+    int minimumNeededToComplete = nextGroupsSum + nextGroups.Length - 1;
+    int upperBound = test.Pattern.Length - minimumNeededToComplete - 1;
+    string subPattern = test.Pattern[test.Offset..upperBound];
+
+    int hashIndex = subPattern.IndexOf(BrokenSpring);
+    if (hashIndex >= 0)
     {
-        Test test = tests.Dequeue();
-        int group = test.Groups.Span[0];
-        Regex matcher = matchers[group];
-        Memory<int> nextGroups = test.Groups[1..];
-        int nextGroupsSum = test.GroupsSum - group;
-
-        Dictionary<string, int> nextPatterns = new();
-
-        int minimumNeededToComplete = nextGroupsSum + nextGroups.Length - 1;
-        int upperBound = test.Pattern.Length - minimumNeededToComplete - 1;
-        if (upperBound - test.Offset <= 0) continue; // Sbavatura?
-        string subPattern = test.Pattern[test.Offset..upperBound];
-
-        int hashIndex = subPattern.IndexOf('#');
-        if (hashIndex >= 0 && hashIndex < (subPattern.Length - 1))
+        if (!isLastOne && hashIndex < (subPattern.Length - 1))
         {
             int maxIndex = Math.Min(subPattern.Length, hashIndex + group);            
             do
             {
                 hashIndex++;
             }
-            while(hashIndex < maxIndex && subPattern[hashIndex] != '.');
+            while(hashIndex < maxIndex && subPattern[hashIndex] != Separator);
 
             upperBound = test.Offset + hashIndex + 1;
             subPattern = test.Pattern[test.Offset..upperBound];
         }
-        else
-        {
-        }
-
-        List<int> indexes = null; 
-        indexes = matchCache[group].GetOrAdd(subPattern, key => matcher.Matches(key).Cast<Match>().Select(m => m.Index).ToList());
-        
-        foreach (int index in indexes)
-        {
-            int start = index + test.Offset;
-            int length = group + 2;
-            int secondPart = Math.Min(test.Pattern.Length, start + length); // Sbavatura Math.Min, andrebbe solo start+length;
-            string nextPattern = $"{test.Pattern[0..start]}.{group.ToString().PadRight(group, '.')}.{test.Pattern[secondPart..]}";
-
-            if (nextGroups.Length == 0)
-            {
-                if (!nextPattern.Contains('#')) // Sbavatura: questo ancora serve, perché?
-                {
-                    solutions.Add(nextPattern.Replace('?', '.'));
-                }
-            }
-            else
-            {
-                nextPatterns.TryAdd(nextPattern, start + length - 1);
-            }
-        }
-
-        foreach (KeyValuePair<string, int> entry in nextPatterns)
-        {
-            Test nextTest = new Test(entry.Key, nextGroups, nextGroupsSum, entry.Value);
-            tests.Enqueue(nextTest);
-        }
     }
 
-    return solutions.Count;
+    List<int> indexes = matcher.Matches(subPattern).Cast<Match>().Select(m => m.Index).ToList();
+    foreach (int index in indexes)
+    {
+        int start = index + test.Offset;
+        int length = group + 2;
+        int secondPart = start + length;
+        string nextPattern = $"{test.Pattern[0..start]}.{group.ToString().PadRight(group, '.')}.{test.Pattern[secondPart..]}";
+        nextPatterns.TryAdd(nextPattern, start + length - 1);
+    }
+
+    long sum;
+    if (isLastOne)
+    {
+        sum = nextPatterns.Where(p => !p.Key.Contains(BrokenSpring)).Count();
+    }
+    else
+    {
+        sum = (
+            from entry in nextPatterns
+            let nextTest = new Test(entry.Key, nextGroups, nextGroupsSum, entry.Value)
+            select GetCombinations(nextTest, cache)).Sum();
+    }
+
+    cache.Add(cacheKey, sum);
+    return sum;
 }
 
-// Console.WriteLine(string.Join(", ", combinations.AsParallel()));
-Console.WriteLine(combinations.AsParallel().Sum());
-
-record Test(string Pattern, Memory<int> Groups, int GroupsSum, int Offset);
+combinations.AsParallel().Sum()
